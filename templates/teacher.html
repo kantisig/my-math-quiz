@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MathQuiz Dashboard - สำหรับอาจารย์</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <style>.katex { font-size: 1.1em; }</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+    <header class="bg-indigo-700 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <span>📊 MathQuiz Dashboard</span>
+                <span class="text-xs bg-indigo-900 text-indigo-200 px-2 py-0.5 rounded-full">อาจารย์</span>
+            </h1>
+            <div class="flex gap-2">
+                <a href="/api/template" download class="bg-indigo-800 hover:bg-indigo-900 text-xs px-3 py-1.5 rounded-md border border-indigo-500 transition">
+                    📥 ดาวน์โหลด JSON Template
+                </a>
+                <a href="/" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-xs px-3 py-1.5 rounded-md font-medium transition">
+                    🧑‍🎓 เปิดหน้านักเรียน
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+        
+        <!-- แถบควบคุมข้อสอบ & เวลา -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- อัปโหลด JSON -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="font-semibold text-slate-700 mb-2">📁 1. อัปโหลดชุดข้อสอบ (JSON)</h2>
+                <input type="file" id="jsonFileInput" accept=".json" class="block w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer mb-2"/>
+                <div id="quizInfo" class="text-xs text-slate-500 bg-slate-50 p-2.5 rounded border border-slate-100">
+                    ยังไม่ได้โหลดข้อสอบ
+                </div>
+            </div>
+
+            <!-- ควบคุมการสอบสด -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 md:col-span-2 flex flex-col justify-between">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h2 class="font-semibold text-slate-700">⏱️ 2. ควบคุมเวลาการสอบสด (Live Exam)</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">เมื่อเริ่มจับเวลา หน้าจอนักเรียนทุกคนจะได้รับชุดข้อสอบพร้อมกันทันที</p>
+                    </div>
+                    <span id="sessionBadge" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">
+                        รอเปิดการสอบ
+                    </span>
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-medium text-slate-600">เวลาสอบ (นาที):</label>
+                        <input type="number" id="timeMinutesInput" value="10" min="1" max="180" class="w-20 px-2 py-1 text-sm border border-slate-300 rounded outline-none">
+                    </div>
+                    <button id="btnStart" onclick="startSession()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition shadow-sm">
+                        ▶ เริ่มการสอบ
+                    </button>
+                    <button id="btnStop" onclick="stopSession()" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm hidden">
+                        ⏹ สิ้นสุดการสอบ
+                    </button>
+                    <div class="text-2xl font-mono font-bold text-indigo-700 ml-auto" id="timerDisplay">00:00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- รายงานผล & กราฟวิเคราะห์ -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Histogram -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 lg:col-span-5 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-semibold text-slate-800">📈 การกระจายคะแนน (Histogram)</h3>
+                    <span class="text-xs bg-slate-100 text-slate-700 font-medium px-2 py-1 rounded">
+                        ส่งแล้ว <b id="totalSubmissions" class="text-indigo-600">0</b> คน
+                    </span>
+                </div>
+                <div class="relative flex-1 min-h-[260px]">
+                    <canvas id="scoreHistogram"></canvas>
+                </div>
+            </div>
+
+            <!-- ข้อที่ตอบผิดเยอะสุด -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 lg:col-span-7 flex flex-col">
+                <h3 class="font-semibold text-slate-800 mb-1">🎯 ข้อที่ตอบผิดกันเยอะสุด (Item Analysis)</h3>
+                <p class="text-xs text-slate-500 mb-3">เรียงจากข้อที่มีผู้ตอบผิดสูงสุด สำหรับอาจารย์ใช้อธิบายเฉลยหน้าชั้นเรียน</p>
+                <div id="errorRankingContainer" class="space-y-4 overflow-y-auto max-h-[480px] pr-1">
+                    <div class="text-center py-12 text-slate-400 text-sm">ยังไม่มีข้อมูลการส่งคำตอบ</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let ws;
+        let timerInterval = null;
+        let remainingSeconds = 0;
+        let chartInstance = null;
+
+        function renderMath() {
+            if (window.renderMathInElement) {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        {left: "$$", right: "$$", display: true},
+                        {left: "$", right: "$", display: false},
+                        {left: "\\(", right: "\\)", display: false},
+                        {left: "\\[", right: "\\]", display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('scoreHistogram').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'จำนวนนักเรียน (คน)',
+                        data: [],
+                        backgroundColor: 'rgba(99, 102, 241, 0.65)',
+                        borderColor: 'rgb(79, 70, 229)',
+                        borderWidth: 1.5,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
+
+        function connectWebSocket() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${location.host}/ws/teacher`);
+
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.type === "INIT") {
+                    if (msg.quiz) updateQuizInfo(msg.quiz);
+                    if (msg.is_live) {
+                        setSessionActive(true);
+                        startClientTimer(msg.remaining_seconds);
+                    }
+                    if (msg.analytics) updateAnalytics(msg.analytics);
+                } else if (msg.type === "SESSION_STARTED") {
+                    setSessionActive(true);
+                    startClientTimer(msg.duration);
+                } else if (msg.type === "SESSION_STOPPED") {
+                    setSessionActive(false);
+                } else if (msg.type === "NEW_SUBMISSION") {
+                    updateAnalytics(msg.analytics);
+                } else if (msg.type === "QUIZ_UPDATED") {
+                    updateQuizInfo(msg.quiz);
+                }
+            };
+            ws.onclose = () => setTimeout(connectWebSocket, 2000);
+        }
+
+        function updateQuizInfo(quiz) {
+            document.getElementById('quizInfo').innerHTML = `
+                <div class="font-medium text-slate-800">${quiz.quiz_title}</div>
+                <div>จำนวน: ${quiz.questions.length} ข้อ | เวลา: ${quiz.time_limit_minutes} นาที</div>
+            `;
+            document.getElementById('timeMinutesInput').value = quiz.time_limit_minutes || 10;
+        }
+
+        function updateAnalytics(analytics) {
+            document.getElementById('totalSubmissions').innerText = analytics.total_students;
+            if (chartInstance) {
+                chartInstance.data.labels = analytics.histogram.labels;
+                chartInstance.data.datasets[0].data = analytics.histogram.data;
+                chartInstance.update();
+            }
+            renderErrorRanking(analytics.error_ranking);
+        }
+
+        function renderErrorRanking(ranking) {
+            const container = document.getElementById('errorRankingContainer');
+            if (!ranking || ranking.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 text-slate-400 text-sm">ยังไม่มีข้อมูลการส่งคำตอบ</div>`;
+                return;
+            }
+
+            container.innerHTML = ranking.map((item, idx) => `
+                <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+                    <div class="flex justify-between items-center">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${idx === 0 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}">
+                            อันดับ ${idx + 1} • ผิด ${item.error_rate}% (${item.wrong_count}/${item.total_answered} คน)
+                        </span>
+                    </div>
+                    <div class="font-medium text-slate-800 text-base">
+                        <span class="text-indigo-600 font-bold">ข้อ ${item.id}:</span> ${item.question}
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm pt-1">
+                        ${item.choices.map((ch, cIdx) => {
+                            const isCorrect = (cIdx === item.correct_answer_index);
+                            return `
+                                <div class="p-2 rounded border flex justify-between items-center ${isCorrect ? 'bg-emerald-50 border-emerald-300 font-medium text-emerald-900' : 'bg-white border-slate-200 text-slate-700'}">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs px-1.5 py-0.5 rounded ${isCorrect ? 'bg-emerald-200 text-emerald-800 font-bold' : 'bg-slate-100'}">${['A','B','C','D'][cIdx]}</span>
+                                        <span>${ch}</span>
+                                    </div>
+                                    <span class="text-xs text-slate-400">${item.choice_counts[cIdx]} คน</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `).join('');
+            renderMath();
+        }
+
+        document.getElementById('jsonFileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert('✅ อัปโหลดชุดข้อสอบสำเร็จ: ' + data.title);
+                } else {
+                    alert('❌ อัปโหลดล้มเหลว: ' + data.message);
+                }
+            } catch (err) {
+                alert('เกิดข้อผิดพลาดในการอัปโหลด');
+            }
+        });
+
+        async function startSession() {
+            const duration = document.getElementById('timeMinutesInput').value;
+            const res = await fetch('/api/start-timer', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ duration: parseInt(duration) })
+            });
+            const data = await res.json();
+            if (data.status !== 'success') alert(data.message);
+        }
+
+        async function stopSession() {
+            if (!confirm("ต้องการหยุดการสอบและปิดรับคำตอบทันทีหรือไม่?")) return;
+            await fetch('/api/stop-timer', { method: 'POST' });
+        }
+
+        function setSessionActive(active) {
+            const badge = document.getElementById('sessionBadge');
+            const btnStart = document.getElementById('btnStart');
+            const btnStop = document.getElementById('btnStop');
+
+            if (active) {
+                badge.innerText = '● กำลังเปิดสอบสด';
+                badge.className = 'px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 animate-pulse';
+                btnStart.classList.add('hidden');
+                btnStop.classList.remove('hidden');
+            } else {
+                badge.innerText = 'รอเปิดการสอบ';
+                badge.className = 'px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600';
+                btnStart.classList.remove('hidden');
+                btnStop.classList.add('hidden');
+                clearInterval(timerInterval);
+                document.getElementById('timerDisplay').innerText = "00:00";
+            }
+        }
+
+        function startClientTimer(seconds) {
+            remainingSeconds = seconds;
+            clearInterval(timerInterval);
+            updateTimerDisplay();
+
+            timerInterval = setInterval(() => {
+                remainingSeconds--;
+                if (remainingSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    setSessionActive(false);
+                }
+                updateTimerDisplay();
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(Math.max(0, remainingSeconds) / 60);
+            const s = Math.max(0, remainingSeconds) % 60;
+            document.getElementById('timerDisplay').innerText = 
+                `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            connectWebSocket();
+            setTimeout(renderMath, 400);
+        });
+    </script>
+</body>
+</html>

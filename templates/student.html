@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MathQuiz - ห้องสอบสด</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- KaTeX สำหรับแสดงผล LaTeX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <style>.katex { font-size: 1.15em; }</style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col items-center">
+
+    <!-- Header -->
+    <header class="w-full bg-white shadow-sm border-b border-slate-200 py-3.5 px-4 sticky top-0 z-40">
+        <div class="max-w-3xl mx-auto flex justify-between items-center">
+            <div class="font-bold text-lg text-indigo-700">📐 MathQuiz</div>
+            <div id="timerBox" class="hidden flex items-center gap-1.5 text-rose-600 font-mono font-bold text-lg">
+                <span>⏳</span>
+                <span id="timerDisplay">00:00</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="w-full max-w-3xl p-4 sm:p-6 my-auto">
+
+        <!-- 1. หน้ารออาจารย์เปิดการสอบ (Waiting Screen) -->
+        <div id="viewWaiting" class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center space-y-4">
+            <div class="text-4xl animate-bounce">⏳</div>
+            <h2 class="text-2xl font-bold text-slate-800">รออาจารย์เปิดระบบการสอบ</h2>
+            <p id="waitingStatusText" class="text-sm text-slate-500">ระบบจะนำเข้าสู่ข้อสอบอัตโนมัติทันทีที่อาจารย์กดเริ่มเวลา</p>
+            
+            <div class="pt-4 max-w-xs mx-auto text-left">
+                <label class="block text-xs font-semibold text-slate-600 mb-1">ระบุชื่อหรือรหัสนักเรียน:</label>
+                <input type="text" id="studentNameInput" placeholder="เช่น สมชาย ใจดี" class="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+            </div>
+        </div>
+
+        <!-- 2. หน้าทำข้อสอบสด (Live Exam Screen) -->
+        <div id="viewQuiz" class="hidden bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-100">
+                <span class="text-sm font-bold text-indigo-600" id="questionProgress">ข้อที่ 1 / 10</span>
+                <span class="text-xs bg-rose-100 text-rose-700 font-semibold px-2.5 py-0.5 rounded-full animate-pulse">● กำลังสอบสด</span>
+            </div>
+
+            <div id="questionText" class="text-lg sm:text-xl font-medium text-slate-800 leading-relaxed min-h-[50px]"></div>
+            <div id="choicesContainer" class="space-y-3"></div>
+
+            <div class="flex justify-between items-center pt-4 border-t border-slate-100">
+                <button id="btnPrev" onclick="prevQuestion()" class="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition disabled:opacity-40" disabled>
+                    ◀ ข้อย้อนหลัง
+                </button>
+                <div class="flex gap-2">
+                    <button id="btnNext" onclick="nextQuestion()" class="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-sm">
+                        ข้อถัดไป ▶
+                    </button>
+                    <button id="btnSubmit" onclick="submitExam()" class="hidden px-6 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition shadow-sm">
+                        ✓ ส่งคำตอบ
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. หน้าสรุปผลคะแนน & เฉลย (Result View) -->
+        <div id="viewResult" class="hidden bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+            <div class="text-center space-y-2">
+                <div class="text-4xl">🎉</div>
+                <h2 class="text-2xl font-bold text-slate-800">ส่งคำตอบเรียบร้อยแล้ว</h2>
+                <div class="text-3xl font-extrabold text-indigo-600" id="finalScoreDisplay">0 / 0</div>
+                <p class="text-xs text-slate-400">ผลคะแนนส่งไปยังหน้าจอของอาจารย์เรียบร้อยแล้ว</p>
+            </div>
+            <div id="summaryReviewList" class="space-y-4 pt-4 border-t border-slate-100"></div>
+        </div>
+
+    </div>
+
+    <script>
+        let questions = [];
+        let currentIndex = 0;
+        let userAnswers = {};
+        let pollInterval = null;
+        let timerInterval = null;
+        let remainingSeconds = 0;
+
+        function renderMath() {
+            if (window.renderMathInElement) {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        {left: "$$", right: "$$", display: true},
+                        {left: "$", right: "$", display: false},
+                        {left: "\\(", right: "\\)", display: false},
+                        {left: "\\[", right: "\\]", display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+
+        // คอยตรวจสอบสถานะการเปิดสอบจากอาจารย์
+        async function checkStatus() {
+            try {
+                const res = await fetch('/api/quiz-status');
+                const data = await res.json();
+                
+                if (data.is_live && questions.length === 0) {
+                    clearInterval(pollInterval);
+                    startExam(data.remaining_seconds);
+                } else if (!data.is_live && questions.length === 0) {
+                    document.getElementById('waitingStatusText').innerText = data.has_quiz 
+                        ? `ชุดข้อสอบ "${data.quiz_title}" (${data.total_questions} ข้อ) - รออาจารย์เริ่มจับเวลา`
+                        : "ยังไม่มีชุดข้อสอบในระบบ กรุณารออาจารย์อัปโหลดไฟล์ข้อสอบ";
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function startExam(timeLeft) {
+            const res = await fetch('/api/get-quiz');
+            const data = await res.json();
+            questions = data.questions;
+
+            document.getElementById('viewWaiting').classList.add('hidden');
+            document.getElementById('viewQuiz').classList.remove('hidden');
+            document.getElementById('timerBox').classList.remove('hidden');
+
+            startCountdown(timeLeft);
+            loadQuestion(0);
+        }
+
+        function loadQuestion(idx) {
+            currentIndex = idx;
+            const q = questions[currentIndex];
+            document.getElementById('questionProgress').innerText = `ข้อที่ ${currentIndex + 1} / ${questions.length}`;
+            document.getElementById('questionText').innerHTML = `<span class="text-indigo-600 font-bold">ข้อ ${currentIndex + 1}:</span> ${q.question}`;
+
+            const container = document.getElementById('choicesContainer');
+            container.innerHTML = '';
+            const chosen = userAnswers[q.id];
+            const letters = ['A', 'B', 'C', 'D'];
+
+            q.choices.forEach((ch, cIdx) => {
+                const isSelected = (chosen === cIdx);
+                const btn = document.createElement('button');
+                btn.className = `w-full text-left p-3.5 rounded-xl border transition flex items-center gap-3 text-sm sm:text-base ${
+                    isSelected ? 'border-indigo-600 bg-indigo-50 font-medium text-indigo-950 ring-2 ring-indigo-500/20' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                }`;
+                btn.onclick = () => {
+                    userAnswers[q.id] = cIdx;
+                    loadQuestion(currentIndex);
+                };
+                btn.innerHTML = `
+                    <span class="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}">${letters[cIdx]}</span>
+                    <span class="flex-1">${ch}</span>
+                `;
+                container.appendChild(btn);
+            });
+
+            document.getElementById('btnPrev').disabled = (currentIndex === 0);
+            if (currentIndex === questions.length - 1) {
+                document.getElementById('btnNext').classList.add('hidden');
+                document.getElementById('btnSubmit').classList.remove('hidden');
+            } else {
+                document.getElementById('btnNext').classList.remove('hidden');
+                document.getElementById('btnSubmit').classList.add('hidden');
+            }
+            renderMath();
+        }
+
+        function prevQuestion() { if (currentIndex > 0) loadQuestion(currentIndex - 1); }
+        function nextQuestion() { if (currentIndex < questions.length - 1) loadQuestion(currentIndex + 1); }
+
+        async function submitExam() {
+            clearInterval(timerInterval);
+            const studentName = document.getElementById('studentNameInput').value.trim() || "Anonymous Student";
+            
+            try {
+                const res = await fetch('/api/submit', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ student_name: studentName, answers: userAnswers })
+                });
+                const data = await res.json();
+                showResultView(data);
+            } catch (err) {
+                alert('ส่งคำตอบล้มเหลว กรุณาลองใหม่อีกครั้ง');
+            }
+        }
+
+        function showResultView(resultData) {
+            document.getElementById('viewQuiz').classList.add('hidden');
+            document.getElementById('timerBox').classList.add('hidden');
+            document.getElementById('viewResult').classList.remove('hidden');
+
+            const details = resultData.details || {};
+            document.getElementById('finalScoreDisplay').innerText = `${resultData.score} / ${resultData.total}`;
+
+            const container = document.getElementById('summaryReviewList');
+            container.innerHTML = '';
+
+            questions.forEach((q, idx) => {
+                const item = details[String(q.id)] || {};
+                const isCorrect = item.is_correct;
+                const div = document.createElement('div');
+                div.className = `p-4 rounded-xl border text-sm space-y-2 ${isCorrect ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50/60 border-rose-200'}`;
+                div.innerHTML = `
+                    <div class="font-bold ${isCorrect ? 'text-emerald-800' : 'text-rose-800'}">
+                        ข้อ ${idx + 1}: ${isCorrect ? '✓ ถูกต้อง' : '✗ ไม่ถูกต้อง'}
+                    </div>
+                    <div class="text-slate-800 font-medium">${q.question}</div>
+                    <div class="text-xs text-slate-600">
+                        คุณตอบ: <b>${item.chosen !== undefined ? ['A','B','C','D'][item.chosen] : 'ไม่ตอบ'}</b> | 
+                        เฉลย: <b class="text-emerald-700">${item.correct !== undefined ? ['A','B','C','D'][item.correct] : '-'}</b>
+                    </div>
+                    ${item.explanation ? `<div class="p-2.5 rounded bg-white border border-slate-200 text-xs text-slate-600">💡 <b>คำอธิบาย:</b> ${item.explanation}</div>` : ''}
+                `;
+                container.appendChild(div);
+            });
+            renderMath();
+        }
+
+        function startCountdown(seconds) {
+            remainingSeconds = seconds;
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                remainingSeconds--;
+                if (remainingSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    alert('⏰ หมดเวลาสอบแล้ว ระบบจะทำการส่งคำตอบอัตโนมัติ');
+                    submitExam();
+                }
+                updateTimerDisplay();
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(Math.max(0, remainingSeconds) / 60);
+            const s = Math.max(0, remainingSeconds) % 60;
+            document.getElementById('timerDisplay').innerText = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            checkStatus();
+            pollInterval = setInterval(checkStatus, 2000); // ตรวจสอบสถานะทุกๆ 2 วินาที
+            setTimeout(renderMath, 400);
+        });
+    </script>
+</body>
+</html>
