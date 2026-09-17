@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 p-6">
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow space-y-6">
+        <h1 class="text-2xl font-bold text-slate-800">จัดการระบบ (Admin Dashboard)</h1>
+        
+        <!-- Upload JSON -->
+        <div class="border p-4 rounded-lg bg-slate-50">
+            <h2 class="font-semibold mb-2">อัปโหลดไฟล์โจทย์ (JSON)</h2>
+            <input type="file" id="jsonFile" accept=".json" class="mb-2 block">
+            <button onclick="uploadJSON()" class="bg-indigo-600 text-white px-4 py-1.5 rounded">Upload</button>
+        </div>
+
+        <!-- Toggle Subject Active -->
+        <div class="border p-4 rounded-lg bg-slate-50">
+            <h2 class="font-semibold mb-2">เปิด/ปิด วิชาสำหรับนักเรียน</h2>
+            <div id="subjectList" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <script>
+        async function loadSubjects() {
+            const res = await fetch('/api/admin/subjects');
+            const data = await res.json();
+            document.getElementById('subjectList').innerHTML = data.map(s => `
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" ${s.is_active ? 'checked' : ''} onchange="toggleSubject('${s.subject_name}', this.checked)">
+                    <span class="font-medium">${s.subject_name}</span>
+                </label>
+            `).join('');
+        }
+
+        async function toggleSubject(subject_name, is_active) {
+            await fetch('/api/admin/toggle-subject', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ subject_name, is_active })
+            });
+        }
+
+        async function uploadJSON() {
+            const file = document.getElementById('jsonFile').files[0];
+            if(!file) return alert('กรุณาเลือกไฟล์ก่อน');
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/admin/upload-json', { method: 'POST', body: formData });
+            const data = await res.json();
+            if(data.success) { alert(`อัปโหลดสำเร็จ ${data.count} ข้อ`); loadSubjects(); }
+        }
+
+        loadSubjects();
+    </script>
+</body>
+</html>

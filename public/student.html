@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculus AI Workspace</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- MathJax for rendering LaTeX -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body class="bg-[#0f1123] text-slate-800 font-sans min-h-screen flex flex-col">
+
+    <!-- Header Navigation Bar -->
+    <header class="bg-[#0f1123] text-white px-6 py-3 flex justify-between items-center border-b border-slate-800">
+        <div class="flex items-center space-x-2">
+            <span class="text-xl font-bold bg-indigo-600 text-white p-1 rounded">$\sqrt{x}$</span>
+            <span class="text-lg font-bold tracking-wide">Calculus AI Workspace</span>
+        </div>
+        <div class="flex items-center space-x-3 text-sm">
+            <span class="text-slate-400"><i class="fa-solid font-bold text-indigo-400">⚙️</i> เลือกผู้ให้บริการ AI:</span>
+            <select id="aiModelSelect" class="bg-[#1e2038] text-white border border-slate-700 px-3 py-1.5 rounded-lg outline-none text-xs">
+                <option value="groq">Groq Cloud API (Qwen / Llama 3.3 - ฟรี 100%)</option>
+            </select>
+            <button onclick="logout()" class="ml-4 text-xs bg-red-500/20 text-red-300 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg transition">
+                <i class="fa-solid fa-sign-out-alt"></i> ออกจากระบบ
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Workspace (Split Screen) -->
+    <main class="flex-1 p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-60px)]">
+        
+        <!-- Left Side: Quiz Container -->
+        <section class="lg:col-span-7 bg-[#f8f9fa] rounded-2xl p-6 flex flex-col justify-between shadow-xl overflow-y-auto">
+            <div>
+                <!-- Top Status Header -->
+                <div class="flex justify-between items-center mb-6">
+                    <span id="questionProgress" class="text-xs font-bold text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full">ข้อ 1 / --</span>
+                    <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">คะแนน: <span id="scoreText">0</span></span>
+                </div>
+
+                <!-- Question Area -->
+                <div id="quizContent" class="space-y-6">
+                    <div id="questionText" class="text-lg font-bold text-slate-800 leading-relaxed">
+                        กำลังโหลดข้อสอบ...
+                    </div>
+
+                    <!-- Options List -->
+                    <div id="choicesContainer" class="space-y-3">
+                        <!-- Choice Items will be rendered here dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quiz Controls -->
+            <div class="flex justify-between items-center pt-6 border-t border-slate-200 mt-6">
+                <button id="prevBtn" onclick="navigateQuestion(-1)" class="text-slate-400 hover:text-slate-600 font-medium text-sm flex items-center space-x-1 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-chevron-left text-xs"></i> <span>ย้อนกลับ</span>
+                </button>
+                <button id="submitBtn" onclick="submitAnswer()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition text-sm">
+                    ส่งคำตอบ
+                </button>
+                <button id="nextBtn" onclick="navigateQuestion(1)" class="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center space-x-1">
+                    <span>ถัดไป</span> <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- Right Side: AI Assistant Chat Panel -->
+        <section class="lg:col-span-5 bg-[#14162b] rounded-2xl p-4 flex flex-col justify-between border border-slate-800 shadow-xl">
+            <!-- API Key Input Section -->
+            <div>
+                <div class="relative mb-3">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs">🔑</span>
+                    <input type="password" id="apiKeyInput" placeholder="ใส่ Groq API Key (รับฟรีที่ console.groq.com)" 
+                        class="w-full bg-[#1e2038] text-slate-200 text-xs rounded-xl pl-8 pr-4 py-2 border border-slate-700 outline-none focus:border-indigo-500">
+                </div>
+
+                <!-- Chat Header -->
+                <div class="bg-[#1e2038] px-4 py-2.5 rounded-xl flex justify-between items-center border border-slate-700/50 mb-3">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-robot text-indigo-400 text-sm"></i>
+                        <span class="text-xs font-bold text-white">AI Tutor Assistant</span>
+                    </div>
+                    <span class="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Groq Cloud (Qwen/Llama)</span>
+                </div>
+            </div>
+
+            <!-- Chat History Area -->
+            <div id="chatHistory" class="flex-1 overflow-y-auto space-y-3 my-2 pr-1 text-xs">
+                <div class="bg-[#1e2038] text-slate-300 p-3 rounded-xl max-w-[90%] border border-slate-700/50">
+                    สวัสดีครับ! ระบบถูกปรับให้ใช้ Groq API (โควตาฟรีมหาศาล) เป็นค่าเริ่มต้น สามารถใส่ API Key ในช่องด้านบน แล้วเริ่มถามคำถามได้ทันทีครับ
+                </div>
+            </div>
+
+            <!-- AI Quick Prompts & Chat Input Area -->
+            <div class="space-y-2 pt-2 border-t border-slate-800">
+                <!-- Quick Suggestion Buttons -->
+                <div class="flex space-x-2 overflow-x-auto pb-1 text-[11px]">
+                    <button onclick="sendQuickPrompt('ขอใบ้ข้อนี้หน่อย')" class="bg-[#1e2038] hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center space-x-1 whitespace-nowrap">
+                        <span>💡</span> <span>ขอใบ้</span>
+                    </button>
+                    <button onclick="sendQuickPrompt('ข้อนี้ใช้สูตรอะไรบ้าง')" class="bg-[#1e2038] hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center space-x-1 whitespace-nowrap">
+                        <span>📐</span> <span>สูตรที่ต้องใช้</span>
+                    </button>
+                    <button onclick="sendQuickPrompt('ทำไมข้อนี้ถึงตอบผิด อธิบายให้ที')" class="bg-[#1e2038] hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center space-x-1 whitespace-nowrap">
+                        <span>❓</span> <span>ทำไมถึงผิด?</span>
+                    </button>
+                </div>
+
+                <!-- Input Box -->
+                <form onsubmit="handleChatSubmit(event)" class="flex space-x-2">
+                    <input type="text" id="chatInput" placeholder="พิมพ์คำถามที่นี่..." 
+                        class="flex-1 bg-[#1e2038] text-slate-200 text-xs rounded-xl px-4 py-2.5 border border-slate-700 outline-none focus:border-indigo-500">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-xl flex items-center justify-center transition">
+                        <i class="fa-solid fa-paper-plane text-xs"></i>
+                    </button>
+                </form>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Client Script Code -->
+    <script>
+        let questions = [];
+        let currentIndex = 0;
+        let selectedChoice = null;
+        let score = 0;
+
+        async function init() {
+            try {
+                const res = await fetch('/api/student/questions');
+                if (res.status === 401) return window.location.href = '/index.html';
+                questions = await res.json();
+                
+                if (questions.length > 0) {
+                    renderQuestion();
+                } else {
+                    document.getElementById('questionText').innerText = "ยังไม่มีข้อสอบที่เปิดใช้งานในขณะนี้";
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function renderQuestion() {
+            if (!questions.length) return;
+            const q = questions[currentIndex];
+            selectedChoice = null;
+
+            document.getElementById('questionProgress').innerText = `ข้อ ${currentIndex + 1} / ${questions.length}`;
+            document.getElementById('questionText').innerHTML = `${currentIndex + 1}. ${q.question}`;
+
+            const choicesContainer = document.getElementById('choicesContainer');
+            choicesContainer.innerHTML = '';
+
+            const prefixes = ['A', 'B', 'C', 'D'];
+            const choices = typeof q.choices === 'string' ? JSON.parse(q.choices) : q.choices;
+
+            choices.forEach((choice, idx) => {
+                const div = document.createElement('div');
+                div.className = "choice-item border border-slate-200 hover:border-indigo-400 bg-white p-3.5 rounded-xl cursor-pointer transition flex items-center space-x-3 text-sm";
+                div.onclick = () => selectChoice(idx, div);
+                div.innerHTML = `
+                    <span class="font-bold text-slate-500">${prefixes[idx]}.</span>
+                    <span class="text-slate-800">${choice}</span>
+                `;
+                choicesContainer.appendChild(div);
+            });
+
+            document.getElementById('prevBtn').disabled = currentIndex === 0;
+            
+            // Re-render MathJax formula
+            if (window.MathJax) {
+                MathJax.typesetPromise();
+            }
+        }
+
+        function selectChoice(index, element) {
+            selectedChoice = index;
+            document.querySelectorAll('.choice-item').forEach(el => {
+                el.classList.remove('border-indigo-600', 'bg-indigo-50/50', 'ring-2', 'ring-indigo-500');
+                el.classList.add('bg-white');
+            });
+            element.classList.remove('bg-white');
+            element.classList.add('border-indigo-600', 'bg-indigo-50/50', 'ring-2', 'ring-indigo-500');
+        }
+
+        async function submitAnswer() {
+            if (selectedChoice === null) return alert('กรุณาเลือกคำตอบก่อนส่ง');
+            const q = questions[currentIndex];
+
+            try {
+                const res = await fetch('/api/student/submit-answer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question_id: q.id, chosen_choice: selectedChoice })
+                });
+                const data = await res.json();
+
+                if (data.isCorrect) {
+                    score++;
+                    document.getElementById('scoreText').innerText = score;
+                    alert('ถูกต้องครับ! 🎉');
+                } else {
+                    alert('ยังไม่ถูกครับ ลองทบทวนหรือถาม AI Tutor ดูนะ');
+                }
+
+                if (currentIndex < questions.length - 1) {
+                    navigateQuestion(1);
+                }
+            } catch (err) {
+                alert('เกิดข้อผิดพลาดในการส่งคำตอบ');
+            }
+        }
+
+        function navigateQuestion(step) {
+            if (currentIndex + step >= 0 && currentIndex + step < questions.length) {
+                currentIndex += step;
+                renderQuestion();
+            }
+        }
+
+        async function handleChatSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const prompt = input.value.trim();
+            if (!prompt) return;
+
+            appendChatMessage('user', prompt);
+            input.value = '';
+
+            try {
+                const apiKey = document.getElementById('apiKeyInput').value;
+                const res = await fetch('/api/student/ai-chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, apiKey })
+                });
+                const data = await res.json();
+                appendChatMessage('ai', data.response);
+            } catch (err) {
+                appendChatMessage('ai', 'ขออภัย เกิดข้อผิดพลาดในการเชื่อมต่อ AI');
+            }
+        }
+
+        function sendQuickPrompt(text) {
+            document.getElementById('chatInput').value = text;
+            handleChatSubmit(new Event('submit'));
+        }
+
+        function appendChatMessage(role, text) {
+            const history = document.getElementById('chatHistory');
+            const div = document.createElement('div');
+            
+            if (role === 'user') {
+                div.className = "bg-indigo-600 text-white p-3 rounded-xl max-w-[85%] ml-auto text-xs";
+            } else {
+                div.className = "bg-[#1e2038] text-slate-300 p-3 rounded-xl max-w-[90%] border border-slate-700/50 text-xs";
+            }
+            div.innerText = text;
+            history.appendChild(div);
+            history.scrollTop = history.scrollHeight;
+        }
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/index.html';
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ / สมัครสมาชิก - Calculus Quiz System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full space-y-6">
+        <div class="text-center">
+            <h1 class="text-2xl font-bold text-slate-800">📐 ระบบสอบออนไลน์</h1>
+            <p class="text-sm text-slate-500 mt-1">วิชา Calculus Derivatives</p>
+        </div>
+
+        <!-- แท็บสลับ เข้าสู่ระบบ / สมัครสมาชิก -->
+        <div class="flex border-b text-center font-medium">
+            <button id="loginTab" onclick="switchTab('login')" class="w-1/2 py-2 border-b-2 border-indigo-600 text-indigo-600 font-bold">เข้าสู่ระบบ</button>
+            <button id="registerTab" onclick="switchTab('register')" class="w-1/2 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-600">สมัครสมาชิก</button>
+        </div>
+
+        <!-- ฟอร์ม เข้าสู่ระบบ -->
+        <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">ชื่อผู้ใช้งาน (Username)</label>
+                <input type="text" id="loginUsername" required placeholder="กรอก Username" 
+                    class="w-full border px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">รหัสผ่าน (Password)</label>
+                <input type="password" id="loginPassword" required placeholder="กรอก Password" 
+                    class="w-full border px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition">
+                เข้าสู่ระบบ
+            </button>
+        </form>
+
+        <!-- ฟอร์ม สมัครสมาชิก -->
+        <form id="registerForm" onsubmit="handleRegister(event)" class="space-y-4 hidden">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">ตั้งชื่อผู้ใช้งาน (Username)</label>
+                <input type="text" id="regUsername" required placeholder="ตั้งค่า Username" 
+                    class="w-full border px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">ตั้งรหัสผ่าน (Password)</label>
+                <input type="password" id="regPassword" required placeholder="ตั้งค่า Password" 
+                    class="w-full border px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <button type="submit" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition">
+                ยืนยันการสมัครสมาชิก
+            </button>
+        </form>
+
+        <!-- ข้อความแจ้งเตือน / Error -->
+        <div id="alertMsg" class="hidden text-sm text-center font-medium p-2.5 rounded-lg border"></div>
+    </div>
+
+    <script>
+        function switchTab(type) {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const loginTab = document.getElementById('loginTab');
+            const registerTab = document.getElementById('registerTab');
+            const alertMsg = document.getElementById('alertMsg');
+
+            alertMsg.classList.add('hidden');
+
+            if (type === 'login') {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                loginTab.className = "w-1/2 py-2 border-b-2 border-indigo-600 text-indigo-600 font-bold";
+                registerTab.className = "w-1/2 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-600";
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                registerTab.className = "w-1/2 py-2 border-b-2 border-emerald-600 text-emerald-600 font-bold";
+                loginTab.className = "w-1/2 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-600";
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            showAlert('', false);
+
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+
+            if (!res.ok) return showAlert(data.error || 'เข้าสู่ระบบไม่สำเร็จ', true);
+
+            if (data.mustChangePassword) return window.location.href = '/profile.html';
+            window.location.href = data.role === 'admin' ? '/admin.html' : '/student.html';
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const username = document.getElementById('regUsername').value;
+            const password = document.getElementById('regPassword').value;
+            showAlert('', false);
+
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+
+            if (!res.ok) return showAlert(data.error || 'สมัครสมาชิกไม่สำเร็จ', true);
+
+            showAlert(data.message, false, 'success');
+            document.getElementById('regUsername').value = '';
+            document.getElementById('regPassword').value = '';
+            setTimeout(() => switchTab('login'), 1500);
+        }
+
+        function showAlert(msg, isError, type = 'error') {
+            const alertMsg = document.getElementById('alertMsg');
+            if (!msg) return alertMsg.classList.add('hidden');
+
+            alertMsg.innerText = msg;
+            alertMsg.classList.remove('hidden');
+
+            if (isError || type === 'error') {
+                alertMsg.className = "text-red-500 text-sm text-center font-medium bg-red-50 p-2.5 rounded-lg border border-red-200";
+            } else {
+                alertMsg.className = "text-emerald-600 text-sm text-center font-medium bg-emerald-50 p-2.5 rounded-lg border border-emerald-200";
+            }
+        }
+    </script>
+</body>
+</html>
